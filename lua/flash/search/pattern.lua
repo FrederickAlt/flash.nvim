@@ -57,7 +57,7 @@ end
 ---@param char string
 function M:extend(char)
   if char == Util.BS then
-    return self.pattern:sub(1, -2)
+    return vim.fn.strcharpart(self.pattern, 0, vim.fn.strchars(self.pattern) - 1)
   end
   return self.pattern .. char
 end

@@ -88,7 +88,13 @@ function M:label(m, used)
   if label and self:valid(label) then
     self:use(label)
     local reuse = self.state.opts.label.reuse == "all"
-      or (self.state.opts.label.reuse == "lowercase" and label:lower() == label)
+      or (self.state.opts.label.reuse == "lowercase" and label:match("^[a-z]$"))
+      or (
+        self.state.opts.label.reuse ~= "none"
+        and self.state.opts.label.reuse ~= "lowercase"
+        and self.state.opts.label.reuse ~= "all"
+        and self.state.opts.label.reuse:find(label, 1, true) ~= nil
+      )
 
     if reuse then
       self.used[pos] = label
@@ -177,14 +183,26 @@ function M:skip(win, labels)
   end
 
   vim.api.nvim_win_call(win, function()
+    local info = vim.fn.getwininfo(win)[1]
     while #labels > 0 do
-      -- this is needed, since an uppercase label would trigger smartcase
       local label_group = table.concat(labels, "")
       if vim.go.ignorecase then
         label_group = label_group:lower()
       end
-
-      local p = "\\%(" .. pattern .. "\\)\\m\\zs[" .. label_group .. "]"
+      local escaped = label_group:gsub("([\\^%-])", "\\%1"):gsub("[%[%]%%]", function(c)
+        return string.format("\\x%02x", c:byte())
+      end)
+      local p = "\\%>"
+        .. (info.topline - 1)
+        .. "l"
+        .. "\\%<"
+        .. (info.botline + 1)
+        .. "l"
+        .. "\\%("
+        .. pattern
+        .. "\\)\\m\\zs["
+        .. escaped
+        .. "]"
       local pos
       ok, pos = pcall(vim.fn.searchpos, p, "cnw")
 
@@ -214,6 +232,17 @@ function M:skip(win, labels)
       -- HACK: this will fail if the pattern is an incomplete regex
       -- In that case, we skip all labels
       if label_count == #labels then
+        vim.schedule(function()
+          vim.notify(
+            "HACK triggered!\nchar: "
+              .. vim.fn.strtrans(char)
+              .. "\nlabel_group: "
+              .. vim.fn.strtrans(label_group)
+              .. "\nescaped: "
+              .. vim.fn.strtrans(escaped),
+            vim.log.levels.WARN
+          )
+        end)
         labels = {}
         break
       end

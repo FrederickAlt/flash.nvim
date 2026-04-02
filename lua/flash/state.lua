@@ -73,6 +73,18 @@ end
 
 function M:get_char()
   local ret = Util.get_char()
+  if ret then
+    if #ret > 1 then
+      local translated = vim.fn.keytrans(ret)
+      if translated ~= "" then
+        local special = self.opts.label.special_labels or {}
+        ret = special[translated] or vim.api.nvim_replace_termcodes(translated, true, true, true)
+      end
+    else
+      local special = self.opts.label.special_labels or {}
+      ret = special[ret] or ret
+    end
+  end
   return ret and self:lmap(ret) or nil
 end
 
